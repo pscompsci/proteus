@@ -4,14 +4,11 @@ LIBS=
 .PHONY: all
 all: vmt vme
 
-vmt: vmt.c
-	 $(CC) $(CFLAGS) -o vmt vmt.c $(LIBS)
+vmt: ./src/vmt.c
+	 $(CC) $(CFLAGS) -o vmt ./src/vmt.c $(LIBS)
 
-vme: vme.c
-	 $(CC) $(CFLAGS) -o vme vme.c $(LIBS)
-
-vm: main.c
-	$(CC) $(CFLAGS) -o vm main.c $(LIBS)
+vme: ./src/vme.c
+	 $(CC) $(CFLAGS) -o vme ./src/vme.c $(LIBS)
 
 .PHONY: examples
 examples: ./examples/fib.vmbt ./examples/123.vmbt
