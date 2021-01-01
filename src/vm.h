@@ -1,5 +1,5 @@
-#ifndef VM_H_
-#define VM_H_
+#ifndef PROTEUS_VM_H_
+#define PROTEUS_VM_H_
 
 #include <assert.h>
 #include <ctype.h>
@@ -408,12 +408,26 @@ Inst vm_translate_line(String_View line)
         return (Inst) { .type = DUP, .operand = operand };
     } else if (sv_eq(inst_name, cstr_as_sv("add"))) {
         return (Inst) { .type = ADD };
+    } else if (sv_eq(inst_name, cstr_as_sv("sub"))) {
+        return (Inst) { .type = SUB };
+    } else if (sv_eq(inst_name, cstr_as_sv("mul"))) {
+        return (Inst) { .type = MUL };
+    } else if (sv_eq(inst_name, cstr_as_sv("div"))) {
+        return (Inst) { .type = DIV };
+    } else if (sv_eq(inst_name, cstr_as_sv("eq"))) {
+        return (Inst) { .type = EQ };
     } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
         line = sv_ltrim(line);
         int operand = sv_to_int(sv_rtrim(line));
         return (Inst) { .type = JMP, .operand = operand };
+    } else if (sv_eq(inst_name, cstr_as_sv("jmpf"))) {
+        line = sv_ltrim(line);
+        int operand = sv_to_int(sv_rtrim(line));
+        return (Inst) { .type = JMP_IF };
     } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
         return (Inst) { .type = HALT };
+    } else if (sv_eq(inst_name, cstr_as_sv("dbug"))) {
+        return (Inst) { .type = PRINT_DEBUG };
     } else {
         fprintf(stderr, "ERROR: `%.*s` unknown instruction", (int) inst_name.count, inst_name.data);
         exit(1);
