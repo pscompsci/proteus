@@ -12,7 +12,7 @@
 #define ARRAY_SIZE(xs) (sizeof(xs) / sizeof((xs)[0]))
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_STACK_CAPACITY   1024
-#define VM_EXECUTION_LIMIT  69     /* For testing only */
+#define VM_EXECUTION_LIMIT  82     /* For testing only */
 
 typedef enum {
     ERR_OK = 0,
@@ -23,28 +23,6 @@ typedef enum {
     ERR_ILLEGAL_INST_ACCESS,
     ERR_ILLEGAL_OPERAND,
 } Err;
-
-const char *err_as_cstr(Err err)
-{
-    switch (err) {
-    case ERR_OK: 
-        return "ERR_OK";
-    case ERR_STACK_OVERFLOW: 
-        return "ERR_STACK_OVERFLOW";
-    case ERR_STACK_UNDERFLOW: 
-        return "ERR_STACK_UNDERFLOW";
-    case ERR_ILLEGAL_INST: 
-        return "ERR_ILLEGAL_INST";
-    case ERR_DIV_BY_ZERO:
-        return "ERR_DIV_BY_ZERO";
-    case ERR_ILLEGAL_INST_ACCESS:
-        return "ERR_ILLEGAL_INST_ACCESS";
-    case ERR_ILLEGAL_OPERAND:
-        return "ERR_ILLEGAL_OPERAND";
-    default: 
-        assert(0 && "UNREACHABLE");
-    }
-}
 
 typedef int64_t Word;
 
@@ -63,38 +41,6 @@ typedef enum {
     PRINT_DEBUG,
 } Inst_Type;
 
-const char *inst_type_as_cstr(Inst_Type type)
-{
-    switch (type) {
-    case NOP:
-        return "NOP";
-    case PUSH:
-        return "PUSH";
-    case ADD:
-        return "ADD";
-    case SUB:
-        return "SUB";
-    case MUL:
-        return "MUL";
-    case DIV:
-        return "DIV";
-    case JMP:
-        return "JMP";
-    case JMP_IF:
-        return "JMP_IF";
-    case EQ:
-        return "EQ";
-    case HALT:
-        return "HALT";
-    case DUP:
-        return "DUP";
-    case PRINT_DEBUG:
-        return "PRINT_DEBUG";
-    default:
-        assert(0 && "UNREACHABLE");
-    }
-}
-
 typedef struct {
     Inst_Type type;
     Word operand;
@@ -111,6 +57,11 @@ typedef struct {
     int halt;
 } Vm;
 
+typedef struct {
+    size_t count;
+    const char *data;
+} String_View;
+
 #define INST_NOP()          { .type = NOP }
 #define INST_PUSH(value)    { .type = PUSH, .operand=(value) }
 #define INST_ADD()          { .type = ADD }
@@ -123,6 +74,67 @@ typedef struct {
 #define INST_HALT()         { .type = HALT }
 #define INST_DUP(addr)      { .type = DUP, .operand=(addr) }
 #define INST_PRINT_DEBUG()  { .type = PRINT_DEBUG }
+
+const char *err_as_cstr(Err err);
+const char *inst_type_as_cstr(Inst_Type type);
+
+Err vm_execute_inst(Vm *vm);
+
+void vm_dump_stack(FILE *stream, const Vm *vm);
+void vm_load_program_from_file(Vm *vm, const char *file_path);
+void vm_load_program_from_memory(Vm *vm, Inst *program, size_t program_size);
+void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
+
+String_View trim(String_View sv);
+String_View sv_ltrim(String_View sv);
+String_View sv_rtrim(String_View sv);
+String_View cstr_as_sv(const char *cstr);
+String_View sv_slurp_file(const char *file_path);
+String_View sv_chop_by_delim(String_View *sv, char delim);
+
+int sv_to_int(String_View sv);
+int sv_eq(String_View a, String_View b);
+
+Inst vm_translate_line(String_View line);
+
+size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity);
+
+#endif  // PROTEUS_VM_H_
+
+#ifdef PROTEUS_VM_IMPLEMENTATION
+
+const char *err_as_cstr(Err err)
+{
+    switch (err) {
+    case ERR_OK:                    return "ERR_OK";
+    case ERR_STACK_OVERFLOW:        return "ERR_STACK_OVERFLOW";
+    case ERR_STACK_UNDERFLOW:       return "ERR_STACK_UNDERFLOW";
+    case ERR_ILLEGAL_INST:          return "ERR_ILLEGAL_INST";
+    case ERR_DIV_BY_ZERO:           return "ERR_DIV_BY_ZERO";
+    case ERR_ILLEGAL_INST_ACCESS:   return "ERR_ILLEGAL_INST_ACCESS";
+    case ERR_ILLEGAL_OPERAND:       return "ERR_ILLEGAL_OPERAND";
+    default:                        assert(0 && "UNREACHABLE");
+    }
+}
+
+const char *inst_type_as_cstr(Inst_Type type)
+{
+    switch (type) {
+    case NOP:           return "NOP";
+    case PUSH:          return "PUSH";
+    case ADD:           return "ADD";
+    case SUB:           return "SUB";
+    case MUL:           return "MUL";
+    case DIV:           return "DIV";
+    case JMP:           return "JMP";
+    case JMP_IF:        return "JMP_IF";
+    case EQ:            return "EQ";
+    case HALT:          return "HALT";
+    case DUP:           return "DUP";
+    case PRINT_DEBUG:   return "PRINT_DEBUG";
+    default:            assert(0 && "UNREACHABLE");
+    }
+}
 
 Err vm_execute_inst(Vm *vm)
 {
@@ -255,18 +267,27 @@ void vm_load_program_from_file(Vm *vm, const char *file_path)
 {
     FILE *f = fopen(file_path, "rb");
     if (f == NULL) {
-        fprintf(stderr, "ERROR: Could not open file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not open file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     if (fseek(f, 0, SEEK_END) < 0) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     long m = ftell(f);
     if (m < 0) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
@@ -274,42 +295,51 @@ void vm_load_program_from_file(Vm *vm, const char *file_path)
     assert((size_t)m <= VM_PROGRAM_CAPACITY * sizeof(vm->program[0]));
 
     if (fseek(f, 0, SEEK_SET) < 0) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
-    vm->program_size = fread(vm->program, sizeof(vm->program[0]), m / sizeof(vm->program[0]), f);
+    vm->program_size = fread(vm->program, 
+                             sizeof(vm->program[0]), 
+                             m / sizeof(vm->program[0]), f);
     if (ferror(f)) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     fclose(f);
 }
 
-void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path)
+void vm_save_program_to_file(Inst *program, 
+                             size_t program_size, 
+                             const char *file_path)
 {
     FILE *f = fopen(file_path, "wb");
     if (f == NULL) {
-        fprintf(stderr, "ERROR: Could not open file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not open file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     fwrite(program, sizeof(program[0]), program_size, f);
     if (ferror(f)) {
-        fprintf(stderr, "ERROR: Could not write to file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not write to file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     fclose(f);
 }
-
-Vm vm = {0};
-
-typedef struct {
-    size_t count;
-    const char *data;
-} String_View;
 
 String_View cstr_as_sv(const char *cstr)
 {
@@ -423,18 +453,23 @@ Inst vm_translate_line(String_View line)
     } else if (sv_eq(inst_name, cstr_as_sv("jmpf"))) {
         line = sv_ltrim(line);
         int operand = sv_to_int(sv_rtrim(line));
-        return (Inst) { .type = JMP_IF };
+        return (Inst) { .type = JMP_IF, .operand = operand  };
     } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
         return (Inst) { .type = HALT };
     } else if (sv_eq(inst_name, cstr_as_sv("dbug"))) {
         return (Inst) { .type = PRINT_DEBUG };
     } else {
-        fprintf(stderr, "ERROR: `%.*s` unknown instruction", (int) inst_name.count, inst_name.data);
+        fprintf(stderr, 
+                "ERROR: `%.*s` unknown instruction", 
+                (int) inst_name.count, 
+                inst_name.data);
         exit(1);
     }
 }
 
-size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
+size_t vm_translate_source(String_View source, 
+                           Inst *program, 
+                           size_t program_capacity)
 {
     size_t program_size = 0;
 
@@ -453,35 +488,52 @@ String_View sv_slurp_file(const char *file_path)
 {
     FILE *f = fopen(file_path, "r");
     if (f == NULL) {
-        fprintf(stderr, "ERROR: Could not open file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not open file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     if (fseek(f, 0, SEEK_END) < 0) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     long m = ftell(f);
     if (m < 0) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     char *buffer = malloc(m);
     if (buffer == NULL) {
-        fprintf(stderr, "ERROR: Could not allocate memory for file: %s\n", strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not allocate memory for file: %s\n", 
+                strerror(errno));
         exit(1);
     }
 
     if (fseek(f, 0, SEEK_SET) < 0) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
     size_t n = fread(buffer, 1, m, f);
     if (ferror(f)) {
-        fprintf(stderr, "ERROR: Could not read file %s: %s\n", file_path, strerror(errno));
+        fprintf(stderr, 
+                "ERROR: Could not read file %s: %s\n", 
+                file_path, 
+                strerror(errno));
         exit(1);
     }
 
@@ -493,4 +545,4 @@ String_View sv_slurp_file(const char *file_path)
     };
 }
 
-#endif
+#endif // PROTEUS_BM_IMPLEMENTATION

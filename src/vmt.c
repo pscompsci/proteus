@@ -1,4 +1,7 @@
+#define PROTEUS_VM_IMPLEMENTATION
 #include "vm.h"
+
+Vm vm = {0};
 
 int main(int argc, char **argv)
 {
