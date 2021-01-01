@@ -1,10 +1,10 @@
 # Stack-based VM
 
-## Files
+## Components
 
 * vm.h  - header only core of the virtual machine
-* vmt.c - assembly translator. Outputs translated binary file that can be executed (reads in .vmas and outputs .vmbt)
-* vme.c - runtime execution of .vmbt files
+* proteus.c - runtime execution of .vmbt files
+* proteusc.c - assembly translator. Outputs translated binary file that can be executed (reads in .pasm and outputs .pb)
 
 ## Getting Started
 
@@ -23,25 +23,25 @@ make examples
 To translate a single example source file (eg. fib.vmas)
 
 ```console
-make ./examples/fib.vmbt
+make ./examples/fib.pb
 ```
 
 To translate a user written source assembly file
 
 ```console
-./vmt <input file_path>.vmas <output file_path>.vmbt
+./prott <input file_path>.pasm <output file_path>.pb
 ```
 
 To run a binary file
 
 ```console
-./vme <file_path>.vmbt
+./prot <file_path>.pb
 ```
 
 ## File extensions
 
-### .vmas
+### .pasm
 VM Assembly language file
 
-### .vmbt
+### .pb
 VM Bytecode file

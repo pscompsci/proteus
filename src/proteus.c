@@ -6,7 +6,7 @@ Vm vm = {0};
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        fprintf(stderr, "USAGE: ./vm <input.vmbt>");
+        fprintf(stderr, "USAGE: ./prot <input.pb>");
         fprintf(stderr, "ERROR: expected input binary file");
         exit(1);
     }

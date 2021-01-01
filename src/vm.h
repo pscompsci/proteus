@@ -421,7 +421,6 @@ int sv_to_int(String_View sv)
     return result;
 }
 
-
 Inst vm_translate_line(String_View line)
 {
     line = sv_trim(line);

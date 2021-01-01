@@ -6,7 +6,7 @@ Vm vm = {0};
 int main(int argc, char **argv)
 {
     if (argc < 3) {
-        fprintf(stderr, "USAGE: ./vm <input.vmas> <outout.vmbt>");
+        fprintf(stderr, "USAGE: ./prott <input.pasm> <outout.pb>");
         fprintf(stderr, "ERROR: expected input and output");
         exit(1);
     }
