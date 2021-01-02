@@ -83,7 +83,7 @@ Err vm_execute_program(Vm *vm, int limit);
 void vm_dump_stack(FILE *stream, const Vm *vm);
 void vm_load_program_from_file(Vm *vm, const char *file_path);
 void vm_load_program_from_memory(Vm *vm, Inst *program, size_t program_size);
-void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
+void vm_save_program_to_file(Vm *vm, const char *file_path);
 
 String_View sv_trim(String_View sv);
 String_View sv_ltrim(String_View sv);
@@ -330,8 +330,7 @@ void vm_load_program_from_file(Vm *vm, const char *file_path)
     fclose(f);
 }
 
-void vm_save_program_to_file(Inst *program, 
-                             size_t program_size, 
+void vm_save_program_to_file(Vm *vm, 
                              const char *file_path)
 {
     FILE *f = fopen(file_path, "wb");
@@ -343,7 +342,7 @@ void vm_save_program_to_file(Inst *program,
         exit(1);
     }
 
-    fwrite(program, sizeof(program[0]), program_size, f);
+    fwrite(vm->program, sizeof(vm->program[0]), vm->program_size, f);
     if (ferror(f)) {
         fprintf(stderr, 
                 "ERROR: Could not write to file %s: %s\n", 
@@ -463,13 +462,13 @@ Inst vm_translate_line(String_View line)
         line = sv_ltrim(line);
         int operand = sv_to_int(sv_rtrim(line));
         return (Inst) { .type = JMP, .operand = operand };
-    } else if (sv_eq(inst_name, cstr_as_sv("jmpif"))) {
+    } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
         line = sv_ltrim(line);
         int operand = sv_to_int(sv_rtrim(line));
         return (Inst) { .type = JMP_IF, .operand = operand  };
     } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
         return (Inst) { .type = HALT };
-    } else if (sv_eq(inst_name, cstr_as_sv("dbug"))) {
+    } else if (sv_eq(inst_name, cstr_as_sv("print_debug"))) {
         return (Inst) { .type = PRINT_DEBUG };
     } else {
         fprintf(stderr, 

@@ -1,11 +1,5 @@
 # Stack-based VM
 
-## Components
-
-* vm.h  - Header only core of the virtual machine
-* proteus.c - Runtime execution of proteus binary (.pb) files
-* proteusc.c - Assembly translator. Takes proteus assembly (.pasm) input and outputs proteus binary
-
 ## Getting Started
 
 To compile the required source files:
@@ -20,28 +14,42 @@ To translate the example assembly source files
 make examples
 ```
 
-To translate a single example source file (eg. fib.vmas)
+To translate a single example source file (eg. fib.s)
 
 ```console
-make ./examples/fib.pb
+make ./examples/fib.o
 ```
 
 To translate a user written source assembly file
 
 ```console
-./prott <input file_path>.pasm <output file_path>.pb
+./pasm <input file_path>.s <output file_path>.o
 ```
 
 To run a binary file
 
 ```console
-./prot <file_path>.pb
+./proteus <file_path>.o
 ```
+
+## Components
+
+### vm.h
+Header only core of the virtual machine
+
+### proteus.c
+Runtime execution of proteus binary object (.o) files
+
+### pasm.c
+Assembly translator/assembler. Takes proteus assembly source (.s) input and outputs proteus binary (.o)
+
+### depasm.c
+Disassembles/detranslates proteus binery object files
 
 ## File extensions
 
-### .pasm
-VM Assembly language file. For examples, see [./examples](./examples)
+### .s
+VM Assembly language source file. For examples, see [./examples](./examples)
 
-### .pb
-VM Bytecode file
+### .o
+VM Bytecode object file

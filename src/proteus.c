@@ -14,7 +14,7 @@ static char *shift(int *argc, char ***argv)
 
 static void usage(FILE *stream, const char *program)
 {
-    fprintf(stream, "Usage: %s i <input_filepath>.pb [-l <limit>] [-d]\n", program);
+    fprintf(stream, "Usage: %s i <input_filepath>.o [-l <limit>] [-d]\n", program);
     fprintf(stream, "\t\t i - mandatory path to the binary file to execute\n");
     fprintf(stream, "\t\t-l - limit to the number of instructions executed\n");
     fprintf(stream, "\t\t-d - optional debug\n");
@@ -26,7 +26,7 @@ const char *get_filename_ext(const char *filename) {
     return dot + 1;
 }
 
-int main(int argc, char **argv[])
+int main(int argc, char **argv)
 {
     const char *program = shift(&argc, &argv);
 
@@ -48,8 +48,8 @@ int main(int argc, char **argv[])
             }
             input_file_path = shift(&argc, &argv);
 
-            char *extension = get_filename_ext(input_file_path);
-            if (strcmp(extension, "pb") != 0) {
+            const char *extension = get_filename_ext(input_file_path);
+            if (strcmp(extension, "o") != 0) {
                 usage(stderr, program);
                 fprintf(stderr, "ERROR: Incorrect binary file format\n");
                 return 1;

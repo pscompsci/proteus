@@ -2,21 +2,24 @@ CFLAGS=-Wall -Wextra -Wswitch-enum -std=c11 -pedantic
 LIBS=
 
 .PHONY: all
-all: prot prott
+all: proteus pasm depasm
 
-prot: ./src/proteus.c
-	 $(CC) $(CFLAGS) -o prot ./src/proteus.c $(LIBS)
+proteus: ./src/proteus.c
+	$(CC) $(CFLAGS) -o proteus ./src/proteus.c $(LIBS)
 
-prott: ./src/proteust.c
-	 $(CC) $(CFLAGS) -o prott ./src/proteust.c $(LIBS)
+pasm: ./src/pasm.c
+	$(CC) $(CFLAGS) -o pasm ./src/pasm.c $(LIBS)
+
+depasm: ./src/depasm.c
+	$(CC) $(CFLAGS) -o depasm ./src/depasm.c $(LIBS)
 
 .PHONY: examples
-examples: ./examples/fib.pb ./examples/123.pb
+examples: ./examples/fib.o ./examples/123.o
 
-./examples/fib.pb: ./examples/fib.pasm
-	./prott ./examples/fib.pasm ./examples/fib.pb
+./examples/fib.o: ./examples/fib.s
+	./pasm ./examples/fib.s ./examples/fib.o
 
-./examples/123.pb: ./examples/123.pasm
-	./prott ./examples/123.pasm ./examples/123.pb
+./examples/123.o: ./examples/123.s
+	./pasm ./examples/123.s ./examples/123.o
 
  
