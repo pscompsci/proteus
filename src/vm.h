@@ -10,8 +10,11 @@
 #include <string.h>
 
 #define ARRAY_SIZE(xs) (sizeof(xs) / sizeof((xs)[0]))
-#define VM_PROGRAM_CAPACITY 1024
-#define VM_STACK_CAPACITY   1024
+
+#define VM_PROGRAM_CAPACITY         1024
+#define VM_STACK_CAPACITY           1024
+#define VM_LABEL_CAPACITY           1024
+#define VM_UNRESOLVED_JMPS_CAPACITY 1024
 
 typedef enum {
     ERR_OK = 0,
@@ -61,6 +64,23 @@ typedef struct {
     const char *data;
 } String_View;
 
+typedef struct {
+    String_View name;
+    Word addr;
+} Label;
+
+typedef struct {
+    Word addr;
+    String_View label;
+} Unresolved_Jmp;
+
+typedef struct {
+    Label labels[VM_LABEL_CAPACITY];
+    size_t labels_size;
+    Unresolved_Jmp unresolved_jmps[VM_UNRESOLVED_JMPS_CAPACITY];
+    size_t unresolved_jmps_size;
+} Label_Table;
+
 #define INST_NOP()          { .type = NOP }
 #define INST_PUSH(value)    { .type = PUSH, .operand=(value) }
 #define INST_ADD()          { .type = ADD }
@@ -81,9 +101,12 @@ Err vm_execute_inst(Vm *vm);
 Err vm_execute_program(Vm *vm, int limit);
 
 void vm_dump_stack(FILE *stream, const Vm *vm);
-void vm_load_program_from_file(Vm *vm, const char *file_path);
-void vm_load_program_from_memory(Vm *vm, Inst *program, size_t program_size);
 void vm_save_program_to_file(Vm *vm, const char *file_path);
+void vm_load_program_from_file(Vm *vm, const char *file_path);
+void vm_translate_source(String_View source, Vm *vm, Label_Table *lt);
+void vm_label_table_push(Label_Table *lt, String_View name, Word addr);
+void vm_load_program_from_memory(Vm *vm, Inst *program, size_t program_size);
+void vm_label_table_push_unresolved_jmp(Label_Table *lt, Word addr, String_View label);
 
 String_View sv_trim(String_View sv);
 String_View sv_ltrim(String_View sv);
@@ -95,9 +118,7 @@ String_View sv_chop_by_delim(String_View *sv, char delim);
 int sv_to_int(String_View sv);
 int sv_eq(String_View a, String_View b);
 
-Inst vm_translate_line(String_View line);
-
-size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity);
+Word vm_label_table_find(const Label_Table *lt, String_View name);
 
 #endif  // PROTEUS_VM_H_
 
@@ -434,60 +455,119 @@ int sv_to_int(String_View sv)
     return result;
 }
 
-Inst vm_translate_line(String_View line)
+void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
 {
-    line = sv_trim(line);
-    String_View inst_name = sv_chop_by_delim(&line, ' ');
-    String_View operand = sv_trim(sv_chop_by_delim(&line, ';'));
-    
-    if (sv_eq(inst_name, cstr_as_sv("nop"))) {
-        return (Inst) { .type = NOP };
-    } else if (sv_eq(inst_name, cstr_as_sv("push"))) {
-        return (Inst) { .type = PUSH, .operand = sv_to_int(operand) };
-    } else if (sv_eq(inst_name, cstr_as_sv("dup"))) {
-        return (Inst) { .type = DUP, .operand = sv_to_int(operand) };
-    } else if (sv_eq(inst_name, cstr_as_sv("add"))) {
-        return (Inst) { .type = ADD };
-    } else if (sv_eq(inst_name, cstr_as_sv("sub"))) {
-        return (Inst) { .type = SUB };
-    } else if (sv_eq(inst_name, cstr_as_sv("mul"))) {
-        return (Inst) { .type = MUL };
-    } else if (sv_eq(inst_name, cstr_as_sv("div"))) {
-        return (Inst) { .type = DIV };
-    } else if (sv_eq(inst_name, cstr_as_sv("eq"))) {
-        return (Inst) { .type = EQ };
-    } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
-        return (Inst) { .type = JMP, .operand = sv_to_int(operand) };
-    } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
-        return (Inst) { .type = JMP_IF, .operand = sv_to_int(operand)  };
-    } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
-        return (Inst) { .type = HALT };
-    } else if (sv_eq(inst_name, cstr_as_sv("print_debug"))) {
-        return (Inst) { .type = PRINT_DEBUG };
-    } else {
-        fprintf(stderr, 
-                "ERROR: `%.*s` unknown instruction", 
-                (int) inst_name.count, 
-                inst_name.data);
-        exit(1);
-    }
-}
-
-size_t vm_translate_source(String_View source, 
-                           Inst *program, 
-                           size_t program_capacity)
-{
-    size_t program_size = 0;
-
+    vm->program_size = 0;
     while (source.count > 0) {
-        assert(program_size <= program_capacity);
+        assert(vm->program_size <= VM_PROGRAM_CAPACITY);
         String_View line = sv_trim(sv_chop_by_delim(&source, '\n'));
         if (line.count > 0 && *line.data != ';') {
-            program[program_size++] = vm_translate_line(line);
+            String_View inst_name = sv_chop_by_delim(&line, ' ');
+            String_View operand = sv_trim(sv_chop_by_delim(&line, ';'));
+
+            if (inst_name.count > 0 && inst_name.data[inst_name.count - 1] == ':') {
+                String_View label = { 
+                    .count = inst_name.count - 1,
+                    .data = inst_name.data
+                };
+                vm_label_table_push(lt, label, vm->program_size);
+            } else if (sv_eq(inst_name, cstr_as_sv("nop"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = NOP 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("push"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = PUSH, 
+                    .operand = sv_to_int(operand) 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("dup"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = DUP, 
+                    .operand = sv_to_int(operand) 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("add"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = ADD 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("sub"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = SUB 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("mul"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = MUL 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("div"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = DIV 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("eq"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = EQ 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
+                vm_label_table_push_unresolved_jmp(
+                    lt, vm->program_size, operand);
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = JMP, 
+                    .operand = sv_to_int(operand) 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
+                vm_label_table_push_unresolved_jmp(
+                    lt, vm->program_size, operand);
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = JMP_IF, 
+                    .operand = sv_to_int(operand)  
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = HALT 
+                };
+            } else if (sv_eq(inst_name, cstr_as_sv("print_debug"))) {
+                vm->program[vm->program_size++] = (Inst) { 
+                    .type = PRINT_DEBUG 
+                };
+            } else {
+                fprintf(stderr, 
+                        "ERROR: `%.*s` unknown instruction", 
+                        (int) inst_name.count, 
+                        inst_name.data);
+                exit(1);
+            }
         }
     }
 
-    return program_size;
+    for (size_t i = 0; i < lt->unresolved_jmps_size; i++) {
+        Word addr = vm_label_table_find(lt, lt->unresolved_jmps[i].label);
+        vm->program[lt->unresolved_jmps[i].addr].operand = addr;
+    }
+}
+
+Word vm_label_table_find(const Label_Table *lt, String_View name)
+{
+    for (size_t i = 0; i < lt->labels_size; i++) {
+        if (sv_eq(lt->labels[i].name, name)) {
+            return lt->labels[i].addr;
+        }
+    }
+    fprintf(stderr, "ERROR: label `%.*s` does not exist\n", 
+            (int) name.count, name.data);
+    exit(1);
+}
+
+void vm_label_table_push(Label_Table *lt, String_View name, Word addr)
+{
+    assert(lt->labels_size < VM_LABEL_CAPACITY);
+    lt->labels[lt->labels_size++] = (Label) { .name = name, .addr = addr };
+}
+
+void vm_label_table_push_unresolved_jmp(Label_Table *lt, Word addr, String_View label)
+{
+    assert(lt->unresolved_jmps_size < VM_UNRESOLVED_JMPS_CAPACITY);
+    lt->unresolved_jmps[lt->unresolved_jmps_size++] = (Unresolved_Jmp) { 
+        .addr = addr,
+        .label = label
+    };
 }
 
 String_View sv_slurp_file(const char *file_path)

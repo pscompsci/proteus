@@ -3,8 +3,8 @@
 ; First two fibonacci numbers
     push    0
     push    1
-; Loop
+loop:
     dup     1
     dup     1
     add
-    jmp     2
+    jmp     loop
