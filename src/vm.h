@@ -506,19 +506,31 @@ void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
                     .type = EQ 
                 };
             } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
-                vm_label_table_push_unresolved_jmp(
-                    lt, vm->program_size, operand);
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = JMP, 
-                    .operand = sv_to_int(operand) 
-                };
+                if (operand.count > 0 && isdigit(*operand.data)) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = JMP, 
+                        .operand = sv_to_int(operand) 
+                    };
+                } else {
+                    vm_label_table_push_unresolved_jmp(
+                        lt, vm->program_size, operand);
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = JMP,  
+                    };
+                }
             } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
-                vm_label_table_push_unresolved_jmp(
-                    lt, vm->program_size, operand);
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = JMP_IF, 
-                    .operand = sv_to_int(operand)  
-                };
+                if (operand.count > 0 && isdigit(*operand.data)) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = JMP, 
+                        .operand = sv_to_int(operand) 
+                    };
+                } else {
+                    vm_label_table_push_unresolved_jmp(
+                        lt, vm->program_size, operand);
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = JMP_IF,  
+                    };
+                }
             } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
                 vm->program[vm->program_size++] = (Inst) { 
                     .type = HALT 
