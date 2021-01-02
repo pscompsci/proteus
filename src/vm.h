@@ -488,7 +488,7 @@ size_t vm_translate_source(String_View source,
     while (source.count > 0) {
         assert(program_size <= program_capacity);
         String_View line = sv_trim(sv_chop_by_delim(&source, '\n'));
-        if (line.count > 0) {
+        if (line.count > 0 && *line.data != ';') {
             program[program_size++] = vm_translate_line(line);
         }
     }
