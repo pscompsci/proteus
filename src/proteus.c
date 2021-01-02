@@ -14,10 +14,13 @@ static char *shift(int *argc, char ***argv)
 
 static void usage(FILE *stream, const char *program)
 {
-    fprintf(stream, "Usage: %s i <input_filepath>.o [-l <limit>] [-d]\n", program);
-    fprintf(stream, "\t\t i - mandatory path to the binary file to execute\n");
-    fprintf(stream, "\t\t-l - limit to the number of instructions executed\n");
-    fprintf(stream, "\t\t-d - optional debug\n");
+    fprintf(stream, 
+            "Usage: %s i <input_filepath>.o [-l <limit>] [-d] [-h]\n"
+            "\t\t i - mandatory path to the binary file to execute\n"
+            "\t\t-l - limit to the number of instructions to execute\n"
+            "\t\t-d - debug\n"
+            "\t\t-h - help\n", program);
+
 }
 
 const char *get_filename_ext(const char *filename) {
@@ -46,6 +49,7 @@ int main(int argc, char **argv)
                         flag);
                 return 1;
             }
+
             input_file_path = shift(&argc, &argv);
 
             const char *extension = get_filename_ext(input_file_path);
@@ -63,8 +67,10 @@ int main(int argc, char **argv)
                         flag);
                 return 1;
             }
+
             char *limit_str = shift(&argc, &argv);
             limit = atoi(limit_str);
+
             if (limit == 0) {
                 usage(stderr, program);
                 fprintf(stderr, 
@@ -74,9 +80,12 @@ int main(int argc, char **argv)
             }
         } else if (strcmp(flag, "-d") == 0) {
             debug = 1;
+        } else if (strcmp(flag, "-h") == 0) {
+            usage(stdout, program);
+            return 0;
         } else {
             usage(stderr, program);
-            fprintf(stderr, "ERROR: Invalid flag %s\n", flag);
+            fprintf(stderr, "ERROR: Unknown flag %s\n", flag);
             return 1;
         }
     }
