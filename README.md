@@ -2,9 +2,9 @@
 
 ## Components
 
-* vm.h  - header only core of the virtual machine
-* proteus.c - runtime execution of .vmbt files
-* proteusc.c - assembly translator. Outputs translated binary file that can be executed (reads in .pasm and outputs .pb)
+* vm.h  - Header only core of the virtual machine
+* proteus.c - Runtime execution of proteus binary (.pb) files
+* proteusc.c - Assembly translator. Takes proteus assembly (.pasm) input and outputs proteus binary
 
 ## Getting Started
 
@@ -41,7 +41,7 @@ To run a binary file
 ## File extensions
 
 ### .pasm
-VM Assembly language file
+VM Assembly language file. For examples, see [./examples](./examples)
 
 ### .pb
 VM Bytecode file

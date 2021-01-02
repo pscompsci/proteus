@@ -3,24 +3,93 @@
 
 Vm vm = {0};
 
+static char *shift(int *argc, char ***argv)
+{
+    assert(*argc > 0);
+    char *result = **argv;
+    *argv += 1;
+    *argc -= 1;
+    return result;
+}
+
+static void usage(FILE *stream, const char *program)
+{
+    fprintf(stream, "Usage: %s i <input_filepath>.pb [-l <limit>] [-d]\n", program);
+    fprintf(stream, "\t\t i - mandatory path to the binary file to execute\n");
+    fprintf(stream, "\t\t-l - limit to the number of instructions executed\n");
+    fprintf(stream, "\t\t-d - optional debug\n");
+}
+
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
-        fprintf(stderr, "USAGE: ./prot <input.pb>");
-        fprintf(stderr, "ERROR: expected input binary file");
-        exit(1);
+    const char *program = shift(&argc, &argv);
+
+    printf("Program: %s\n", program);
+    const char *input_file_path = NULL;
+    int limit = -1; // infinite iterations by default
+    int debug = 0;
+
+    while (argc > 0) {
+        const char *flag = shift(&argc, &argv);
+
+        if (strcmp(flag, "i") == 0) {
+            if (argc == 0) {
+                usage(stderr, program);
+                fprintf(stderr, "ERROR: No argument is provided for the flag %s\n", flag);
+                return 1;
+            }
+            input_file_path = shift(&argc, &argv);
+
+        } else if (strcmp(flag, "-l") == 0) {
+            if (argc == 0) {
+                usage(stderr, program);
+                fprintf(stderr, "ERROR: No argument is provided for the flag %s\n", flag);
+                return 1;
+            }
+            char *limit_str = shift(&argc, &argv);
+            limit = atoi(limit_str);
+            if (limit == 0) {
+                usage(stderr, program);
+                fprintf(stderr, "ERROR: `%s` converts to 0 iterations\n", limit_str);
+                return 1;
+            }
+        } else if (strcmp(flag, "-d") == 0) {
+            debug = 1;
+        } else {
+            usage(stderr, program);
+            fprintf(stderr, "ERROR: Invalid flag %s\n", flag);
+            return 1;
+        }
     }
 
-    const char *in_file_path = argv[1];
-    vm_load_program_from_file(&vm, in_file_path);
+    if (input_file_path == NULL) {
+        usage(stderr, program);
+        fprintf(stderr, "ERROR: Input file path was not provided. Nothing to execute\n");
+        return 1;
+    }
 
-    for (int i = 0; i < VM_EXECUTION_LIMIT && !vm.halt; i++) {
-        Err err = vm_execute_inst(&vm);
+    vm_load_program_from_file(&vm, input_file_path);
+
+    if (!debug) {
+        Err err = vm_execute_program(&vm, limit);
         vm_dump_stack(stdout, &vm);
+
         if (err != ERR_OK) {
             fprintf(stderr, "ERROR: %s\n", err_as_cstr(err));
-            vm_dump_stack(stderr, &vm);
-            exit(1);
+            return 1;
+        }
+    } else {
+        while (limit != 0 && !vm.halt) {
+            vm_dump_stack(stdout, &vm);
+            getchar();
+            Err err = vm_execute_inst(&vm);
+            if (err != ERR_OK) {
+                fprintf(stderr, "ERROR: %s\n", err_as_cstr(err));
+                return 1;
+            }
+            if (limit > 0) {
+                --limit;
+            }
         }
     }
 

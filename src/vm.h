@@ -12,16 +12,15 @@
 #define ARRAY_SIZE(xs) (sizeof(xs) / sizeof((xs)[0]))
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_STACK_CAPACITY   1024
-#define VM_EXECUTION_LIMIT  82     /* For testing only */
 
 typedef enum {
     ERR_OK = 0,
+    ERR_DIV_BY_ZERO,
+    ERR_ILLEGAL_INST,
     ERR_STACK_OVERFLOW,
     ERR_STACK_UNDERFLOW,
-    ERR_ILLEGAL_INST,
-    ERR_DIV_BY_ZERO,
-    ERR_ILLEGAL_INST_ACCESS,
     ERR_ILLEGAL_OPERAND,
+    ERR_ILLEGAL_INST_ACCESS,
 } Err;
 
 typedef int64_t Word;
@@ -79,13 +78,14 @@ const char *err_as_cstr(Err err);
 const char *inst_type_as_cstr(Inst_Type type);
 
 Err vm_execute_inst(Vm *vm);
+Err vm_execute_program(Vm *vm, int limit);
 
 void vm_dump_stack(FILE *stream, const Vm *vm);
 void vm_load_program_from_file(Vm *vm, const char *file_path);
 void vm_load_program_from_memory(Vm *vm, Inst *program, size_t program_size);
 void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
 
-String_View trim(String_View sv);
+String_View sv_trim(String_View sv);
 String_View sv_ltrim(String_View sv);
 String_View sv_rtrim(String_View sv);
 String_View cstr_as_sv(const char *cstr);
@@ -134,6 +134,20 @@ const char *inst_type_as_cstr(Inst_Type type)
     case PRINT_DEBUG:   return "PRINT_DEBUG";
     default:            assert(0 && "UNREACHABLE");
     }
+}
+
+Err vm_execute_program(Vm *vm, int limit)
+{
+    while (limit != 0 && !vm->halt) {
+        Err err = vm_execute_inst(vm);
+        if (err != ERR_OK) {
+            return err;
+        }
+        if (limit > 0) {
+            limit--;
+        }
+    }
+    return ERR_OK;
 }
 
 Err vm_execute_inst(Vm *vm)
@@ -449,7 +463,7 @@ Inst vm_translate_line(String_View line)
         line = sv_ltrim(line);
         int operand = sv_to_int(sv_rtrim(line));
         return (Inst) { .type = JMP, .operand = operand };
-    } else if (sv_eq(inst_name, cstr_as_sv("jmpf"))) {
+    } else if (sv_eq(inst_name, cstr_as_sv("jmpif"))) {
         line = sv_ltrim(line);
         int operand = sv_to_int(sv_rtrim(line));
         return (Inst) { .type = JMP_IF, .operand = operand  };
