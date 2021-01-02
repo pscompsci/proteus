@@ -438,16 +438,14 @@ Inst vm_translate_line(String_View line)
 {
     line = sv_trim(line);
     String_View inst_name = sv_chop_by_delim(&line, ' ');
+    String_View operand = sv_trim(sv_chop_by_delim(&line, ';'));
+    
     if (sv_eq(inst_name, cstr_as_sv("nop"))) {
         return (Inst) { .type = NOP };
     } else if (sv_eq(inst_name, cstr_as_sv("push"))) {
-        line = sv_ltrim(line);
-        int operand = sv_to_int(sv_rtrim(line));
-        return (Inst) { .type = PUSH, .operand = operand };
+        return (Inst) { .type = PUSH, .operand = sv_to_int(operand) };
     } else if (sv_eq(inst_name, cstr_as_sv("dup"))) {
-        line = sv_ltrim(line);
-        int operand = sv_to_int(sv_rtrim(line));
-        return (Inst) { .type = DUP, .operand = operand };
+        return (Inst) { .type = DUP, .operand = sv_to_int(operand) };
     } else if (sv_eq(inst_name, cstr_as_sv("add"))) {
         return (Inst) { .type = ADD };
     } else if (sv_eq(inst_name, cstr_as_sv("sub"))) {
@@ -459,13 +457,9 @@ Inst vm_translate_line(String_View line)
     } else if (sv_eq(inst_name, cstr_as_sv("eq"))) {
         return (Inst) { .type = EQ };
     } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
-        line = sv_ltrim(line);
-        int operand = sv_to_int(sv_rtrim(line));
-        return (Inst) { .type = JMP, .operand = operand };
+        return (Inst) { .type = JMP, .operand = sv_to_int(operand) };
     } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
-        line = sv_ltrim(line);
-        int operand = sv_to_int(sv_rtrim(line));
-        return (Inst) { .type = JMP_IF, .operand = operand  };
+        return (Inst) { .type = JMP_IF, .operand = sv_to_int(operand)  };
     } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
         return (Inst) { .type = HALT };
     } else if (sv_eq(inst_name, cstr_as_sv("print_debug"))) {

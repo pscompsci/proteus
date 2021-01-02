@@ -29,7 +29,7 @@ To translate a user written source assembly file
 To run a binary file
 
 ```console
-./proteus <file_path>.o
+./proteus i ./examples/fib.o -l 82
 ```
 
 ## Components

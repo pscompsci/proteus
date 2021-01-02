@@ -1,4 +1,4 @@
 examples/*.o
-proteus
-pasm
-depasm
+./proteus
+./pasm
+./depasm
