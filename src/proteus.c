@@ -20,7 +20,13 @@ static void usage(FILE *stream, const char *program)
     fprintf(stream, "\t\t-d - optional debug\n");
 }
 
-int main(int argc, char **argv)
+const char *get_filename_ext(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    if(!dot || dot == filename) return "";
+    return dot + 1;
+}
+
+int main(int argc, char **argv[])
 {
     const char *program = shift(&argc, &argv);
 
@@ -35,22 +41,35 @@ int main(int argc, char **argv)
         if (strcmp(flag, "i") == 0) {
             if (argc == 0) {
                 usage(stderr, program);
-                fprintf(stderr, "ERROR: No argument is provided for the flag %s\n", flag);
+                fprintf(stderr, 
+                        "ERROR: No argument is provided for the flag %s\n", 
+                        flag);
                 return 1;
             }
             input_file_path = shift(&argc, &argv);
 
+            char *extension = get_filename_ext(input_file_path);
+            if (strcmp(extension, "pb") != 0) {
+                usage(stderr, program);
+                fprintf(stderr, "ERROR: Incorrect binary file format\n");
+                return 1;
+            }
+
         } else if (strcmp(flag, "-l") == 0) {
             if (argc == 0) {
                 usage(stderr, program);
-                fprintf(stderr, "ERROR: No argument is provided for the flag %s\n", flag);
+                fprintf(stderr, 
+                        "ERROR: No argument is provided for the flag %s\n", 
+                        flag);
                 return 1;
             }
             char *limit_str = shift(&argc, &argv);
             limit = atoi(limit_str);
             if (limit == 0) {
                 usage(stderr, program);
-                fprintf(stderr, "ERROR: `%s` converts to 0 iterations\n", limit_str);
+                fprintf(stderr, 
+                        "ERROR: `%s` converts to 0 iterations\n", 
+                        limit_str);
                 return 1;
             }
         } else if (strcmp(flag, "-d") == 0) {
@@ -64,7 +83,8 @@ int main(int argc, char **argv)
 
     if (input_file_path == NULL) {
         usage(stderr, program);
-        fprintf(stderr, "ERROR: Input file path was not provided. Nothing to execute\n");
+        fprintf(stderr, 
+                "ERROR: Input file path was not provided. Nothing to execute\n");
         return 1;
     }
 
