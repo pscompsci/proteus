@@ -471,80 +471,86 @@ void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
                     .data = inst_name.data
                 };
                 vm_label_table_push(lt, label, vm->program_size);
-            } else if (sv_eq(inst_name, cstr_as_sv("nop"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = NOP 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("push"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = PUSH, 
-                    .operand = sv_to_int(operand) 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("dup"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = DUP, 
-                    .operand = sv_to_int(operand) 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("add"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = ADD 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("sub"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = SUB 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("mul"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = MUL 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("div"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = DIV 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("eq"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = EQ 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
-                if (operand.count > 0 && isdigit(*operand.data)) {
+
+                inst_name = sv_trim(sv_chop_by_delim(&line, ' '));
+            }
+            
+            if (inst_name.count > 0) {
+                if (sv_eq(inst_name, cstr_as_sv("nop"))) {
                     vm->program[vm->program_size++] = (Inst) { 
-                        .type = JMP, 
+                        .type = NOP 
+                    };
+                } else if (sv_eq(inst_name, cstr_as_sv("push"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = PUSH, 
                         .operand = sv_to_int(operand) 
                     };
-                } else {
-                    vm_label_table_push_unresolved_jmp(
-                        lt, vm->program_size, operand);
+                } else if (sv_eq(inst_name, cstr_as_sv("dup"))) {
                     vm->program[vm->program_size++] = (Inst) { 
-                        .type = JMP,  
-                    };
-                }
-            } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
-                if (operand.count > 0 && isdigit(*operand.data)) {
-                    vm->program[vm->program_size++] = (Inst) { 
-                        .type = JMP, 
+                        .type = DUP, 
                         .operand = sv_to_int(operand) 
                     };
-                } else {
-                    vm_label_table_push_unresolved_jmp(
-                        lt, vm->program_size, operand);
+                } else if (sv_eq(inst_name, cstr_as_sv("add"))) {
                     vm->program[vm->program_size++] = (Inst) { 
-                        .type = JMP_IF,  
+                        .type = ADD 
                     };
+                } else if (sv_eq(inst_name, cstr_as_sv("sub"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = SUB 
+                    };
+                } else if (sv_eq(inst_name, cstr_as_sv("mul"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = MUL 
+                    };
+                } else if (sv_eq(inst_name, cstr_as_sv("div"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = DIV 
+                    };
+                } else if (sv_eq(inst_name, cstr_as_sv("eq"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = EQ 
+                    };
+                } else if (sv_eq(inst_name, cstr_as_sv("jmp"))) {
+                    if (operand.count > 0 && isdigit(*operand.data)) {
+                        vm->program[vm->program_size++] = (Inst) { 
+                            .type = JMP, 
+                            .operand = sv_to_int(operand) 
+                        };
+                    } else {
+                        vm_label_table_push_unresolved_jmp(
+                            lt, vm->program_size, operand);
+                        vm->program[vm->program_size++] = (Inst) { 
+                            .type = JMP,  
+                        };
+                    }
+                } else if (sv_eq(inst_name, cstr_as_sv("jmp_if"))) {
+                    if (operand.count > 0 && isdigit(*operand.data)) {
+                        vm->program[vm->program_size++] = (Inst) { 
+                            .type = JMP, 
+                            .operand = sv_to_int(operand) 
+                        };
+                    } else {
+                        vm_label_table_push_unresolved_jmp(
+                            lt, vm->program_size, operand);
+                        vm->program[vm->program_size++] = (Inst) { 
+                            .type = JMP_IF,  
+                        };
+                    }
+                } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = HALT 
+                    };
+                } else if (sv_eq(inst_name, cstr_as_sv("print_debug"))) {
+                    vm->program[vm->program_size++] = (Inst) { 
+                        .type = PRINT_DEBUG 
+                    };
+                } else {
+                    fprintf(stderr, 
+                            "ERROR: `%.*s` unknown instruction", 
+                            (int) inst_name.count, 
+                            inst_name.data);
+                    exit(1);
                 }
-            } else if (sv_eq(inst_name, cstr_as_sv("halt"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = HALT 
-                };
-            } else if (sv_eq(inst_name, cstr_as_sv("print_debug"))) {
-                vm->program[vm->program_size++] = (Inst) { 
-                    .type = PRINT_DEBUG 
-                };
-            } else {
-                fprintf(stderr, 
-                        "ERROR: `%.*s` unknown instruction", 
-                        (int) inst_name.count, 
-                        inst_name.data);
-                exit(1);
             }
         }
     }
