@@ -11,10 +11,10 @@
 
 #define ARRAY_SIZE(xs) (sizeof(xs) / sizeof((xs)[0]))
 
-#define VM_PROGRAM_CAPACITY         1024
-#define VM_STACK_CAPACITY           1024
-#define VM_LABEL_CAPACITY           1024
-#define VM_UNRESOLVED_JMPS_CAPACITY 1024
+#define VM_PROGRAM_CAPACITY             1024
+#define VM_STACK_CAPACITY               1024
+#define VM_LABEL_CAPACITY               1024
+#define VM_DEFERRED_OPERANDS_CAPACITY   1024
 
 typedef enum {
     ERR_OK = 0,
@@ -72,14 +72,14 @@ typedef struct {
 typedef struct {
     Word addr;
     String_View label;
-} Unresolved_Jmp;
+} Deferred_Operand;
 
 typedef struct {
     Label labels[VM_LABEL_CAPACITY];
     size_t labels_size;
-    Unresolved_Jmp unresolved_jmps[VM_UNRESOLVED_JMPS_CAPACITY];
-    size_t unresolved_jmps_size;
-} Label_Table;
+    Deferred_Operand deferred_operands[VM_DEFERRED_OPERANDS_CAPACITY];
+    size_t deferred_operands_size;
+} Translation_Context;
 
 #define INST_NOP()          { .type = NOP }
 #define INST_PUSH(value)    { .type = PUSH, .operand=(value) }
@@ -103,10 +103,11 @@ Err vm_execute_program(Vm *vm, int limit);
 void vm_dump_stack(FILE *stream, const Vm *vm);
 void vm_save_program_to_file(Vm *vm, const char *file_path);
 void vm_load_program_from_file(Vm *vm, const char *file_path);
-void vm_translate_source(String_View source, Vm *vm, Label_Table *lt);
-void vm_label_table_push(Label_Table *lt, String_View name, Word addr);
 void vm_load_program_from_memory(Vm *vm, Inst *program, size_t program_size);
-void vm_label_table_push_unresolved_jmp(Label_Table *lt, Word addr, String_View label);
+
+void translator_push_label(Translation_Context *tc, String_View name, Word addr);
+void translator_translate_source(String_View source, Vm *vm, Translation_Context *tc);
+void translator_push_deferred_operand(Translation_Context *tc, Word addr, String_View label);
 
 String_View sv_trim(String_View sv);
 String_View sv_ltrim(String_View sv);
@@ -118,7 +119,7 @@ String_View sv_chop_by_delim(String_View *sv, char delim);
 int sv_to_int(String_View sv);
 int sv_eq(String_View a, String_View b);
 
-Word vm_label_table_find(const Label_Table *lt, String_View name);
+Word vm_translation_context_find(const Translation_Context *lt, String_View name);
 
 #endif  // PROTEUS_VM_H_
 
@@ -455,7 +456,7 @@ int sv_to_int(String_View sv)
     return result;
 }
 
-void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
+void translator_translate_source(String_View source, Vm *vm, Translation_Context *tc)
 {
     vm->program_size = 0;
     while (source.count > 0) {
@@ -463,19 +464,21 @@ void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
         String_View line = sv_trim(sv_chop_by_delim(&source, '\n'));
         if (line.count > 0 && *line.data != ';') {
             String_View inst_name = sv_chop_by_delim(&line, ' ');
-            String_View operand = sv_trim(sv_chop_by_delim(&line, ';'));
 
             if (inst_name.count > 0 && inst_name.data[inst_name.count - 1] == ':') {
                 String_View label = { 
                     .count = inst_name.count - 1,
                     .data = inst_name.data
                 };
-                vm_label_table_push(lt, label, vm->program_size);
+
+                translator_push_label(tc, label, vm->program_size);
 
                 inst_name = sv_trim(sv_chop_by_delim(&line, ' '));
             }
             
             if (inst_name.count > 0) {
+                String_View operand = sv_trim(sv_chop_by_delim(&line, ';'));
+                
                 if (sv_eq(inst_name, cstr_as_sv("nop"))) {
                     vm->program[vm->program_size++] = (Inst) { 
                         .type = NOP 
@@ -517,8 +520,8 @@ void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
                             .operand = sv_to_int(operand) 
                         };
                     } else {
-                        vm_label_table_push_unresolved_jmp(
-                            lt, vm->program_size, operand);
+                        translator_push_deferred_operand(
+                            tc, vm->program_size, operand);
                         vm->program[vm->program_size++] = (Inst) { 
                             .type = JMP,  
                         };
@@ -530,8 +533,8 @@ void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
                             .operand = sv_to_int(operand) 
                         };
                     } else {
-                        vm_label_table_push_unresolved_jmp(
-                            lt, vm->program_size, operand);
+                        translator_push_deferred_operand(
+                            tc, vm->program_size, operand);
                         vm->program[vm->program_size++] = (Inst) { 
                             .type = JMP_IF,  
                         };
@@ -555,17 +558,17 @@ void vm_translate_source(String_View source, Vm *vm, Label_Table *lt)
         }
     }
 
-    for (size_t i = 0; i < lt->unresolved_jmps_size; i++) {
-        Word addr = vm_label_table_find(lt, lt->unresolved_jmps[i].label);
-        vm->program[lt->unresolved_jmps[i].addr].operand = addr;
+    for (size_t i = 0; i < tc->deferred_operands_size; i++) {
+        Word addr = vm_translation_context_find(tc, tc->deferred_operands[i].label);
+        vm->program[tc->deferred_operands[i].addr].operand = addr;
     }
 }
 
-Word vm_label_table_find(const Label_Table *lt, String_View name)
+Word vm_translation_context_find(const Translation_Context *tc, String_View name)
 {
-    for (size_t i = 0; i < lt->labels_size; i++) {
-        if (sv_eq(lt->labels[i].name, name)) {
-            return lt->labels[i].addr;
+    for (size_t i = 0; i < tc->labels_size; i++) {
+        if (sv_eq(tc->labels[i].name, name)) {
+            return tc->labels[i].addr;
         }
     }
     fprintf(stderr, "ERROR: label `%.*s` does not exist\n", 
@@ -573,16 +576,16 @@ Word vm_label_table_find(const Label_Table *lt, String_View name)
     exit(1);
 }
 
-void vm_label_table_push(Label_Table *lt, String_View name, Word addr)
+void translator_push_label(Translation_Context *tc, String_View name, Word addr)
 {
-    assert(lt->labels_size < VM_LABEL_CAPACITY);
-    lt->labels[lt->labels_size++] = (Label) { .name = name, .addr = addr };
+    assert(tc->labels_size < VM_LABEL_CAPACITY);
+    tc->labels[tc->labels_size++] = (Label) { .name = name, .addr = addr };
 }
 
-void vm_label_table_push_unresolved_jmp(Label_Table *lt, Word addr, String_View label)
+void translator_push_deferred_operand(Translation_Context *tc, Word addr, String_View label)
 {
-    assert(lt->unresolved_jmps_size < VM_UNRESOLVED_JMPS_CAPACITY);
-    lt->unresolved_jmps[lt->unresolved_jmps_size++] = (Unresolved_Jmp) { 
+    assert(tc->deferred_operands_size < VM_DEFERRED_OPERANDS_CAPACITY);
+    tc->deferred_operands[tc->deferred_operands_size++] = (Deferred_Operand) { 
         .addr = addr,
         .label = label
     };
